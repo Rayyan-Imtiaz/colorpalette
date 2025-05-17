@@ -1,0 +1,28 @@
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
+            }
+        }
+        stage('Build and Deploy') {
+            steps {
+                sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
+            }
+        }
+    }
+    post {
+        always {
+            sh 'docker-compose -p colorpalette-ci -f docker-compose.yml down || true'
+        }
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+        failure {
+            echo 'Pipeline failed!'
+        }
+    }
+}
