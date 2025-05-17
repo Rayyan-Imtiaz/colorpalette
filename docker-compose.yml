@@ -1,12 +1,18 @@
 version: '3.9'
 
 services:
-  color-palette:
+  web:
     build: .
-    container_name: nextjs-app
+    container_name: colorpalette-web
     ports:
-      - "3000:3000"
+      - "5000:3000"
     env_file:
       - .env
- 
+    volumes:
+      - ./:/app:ro
+    networks:
+      - app-network
 
+networks:
+  app-network:
+    driver: bridge
