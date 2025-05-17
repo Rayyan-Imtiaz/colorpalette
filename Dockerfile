@@ -1,3 +1,6 @@
+FROM node:18-alpine AS base
+
+# Install required build tools and Kerberos headers
 RUN apk add --no-cache python3 make g++ krb5-dev
 
 # Set the working directory
@@ -17,6 +20,3 @@ RUN npm run build
 
 # Expose the default Next.js port
 EXPOSE 3000
-
-# Start the application
-CMD ["npm", "start"]
