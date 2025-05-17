@@ -1,14 +1,12 @@
 version: '3.9'
 
 services:
-  web:
+  color-palette:
     build: .
     container_name: nextjs-app
     ports:
       - "3000:3000"
-    environment:
-      - NODE_ENV=production
-    volumes:
-      - .:/app
-      - /app/node_modules
-    restart: unless-stopped
+    env_file:
+      - .env
+ 
+
