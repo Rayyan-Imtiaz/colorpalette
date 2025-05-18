@@ -1,10 +1,8 @@
 pipeline {
     agent any
-
     environment {
         ENV_VARS = credentials('env-file-secret')
     }
-
     stages {
         stage('Checkout') {
             steps {
@@ -13,22 +11,19 @@ pipeline {
                     url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
             }
         }
-
         stage('Verify Files') {
             steps {
                 sh 'ls -la'
             }
         }
-
         stage('Write .env File') {
             steps {
                 script {
                     writeFile file: '.env', text: ENV_VARS
                 }
-                sh 'cat .env' // Debug: Print .env content
+                sh 'cat .env'
             }
         }
-
         stage('Clean Up Existing Containers') {
             steps {
                 sh '''
@@ -36,14 +31,12 @@ pipeline {
                 '''
             }
         }
-
         stage('Build and Deploy') {
             steps {
                 sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
             }
         }
     }
-
     post {
         always {
             sh 'docker-compose -p colorpalette-ci -f docker-compose.yml down || true'
