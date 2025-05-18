@@ -1,11 +1,11 @@
-version: '3.9'
 services:
   web:
     build: .
-    container_name: color-palette-web
+    container_name: color-palette-web-ci
     ports:
       - "5000:3000"
     env_file:
       - .env
     volumes:
       - ./:/app:ro
+    command: npm run start
