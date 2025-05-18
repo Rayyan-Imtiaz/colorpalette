@@ -4,11 +4,12 @@ RUN apk add --no-cache python3 make g++ krb5-dev
 WORKDIR /app
 # Copy package files
 COPY package*.json ./
-# Clean install to avoid conflicts
+# Clean npm cache
 RUN npm cache clean --force
+# Install dependencies
 RUN npm install --legacy-peer-deps
-# Explicitly install next
-RUN npm install next@15.2.4
+# Install next with legacy peer deps to bypass conflict
+RUN npm install next@15.2.4 --legacy-peer-deps
 # Verify next installation
 RUN npx next --version
 # Copy all files
