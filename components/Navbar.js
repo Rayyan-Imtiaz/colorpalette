@@ -21,7 +21,7 @@ export default function Navbar({ user }) {
           <div className="flex items-center">
             {user ? (
               <>
-                <span className="text-gray-600 mr-4">Hello, {user.name}</span>
+                <span className="text-gray-600 mr-4">Hellooo, {user.name}</span>
                 <Link
                   href="/dashboard"
                   className={`px-3 py-2 rounded-md text-sm font-medium ${
