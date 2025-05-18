@@ -6,6 +6,4 @@ services:
       - "5000:3000"
     env_file:
       - .env
-    volumes:
-      - ./:/app:ro
     command: npm run start
