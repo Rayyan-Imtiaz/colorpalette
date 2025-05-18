@@ -2,8 +2,7 @@ pipeline {
     agent any
 
     environment {
-        // Load the contents of the .env file from Jenkins credentials (Secret Text)
-        ENV_VARS = credentials('env-file-secret')  // You must store the full .env content in this secret
+        ENV_VARS = credentials('env-file-secret')
     }
 
     stages {
@@ -15,11 +14,26 @@ pipeline {
             }
         }
 
+        stage('Verify Files') {
+            steps {
+                sh 'ls -la'
+            }
+        }
+
         stage('Write .env File') {
             steps {
                 script {
                     writeFile file: '.env', text: ENV_VARS
                 }
+                sh 'cat .env' // Debug: Print .env content
+            }
+        }
+
+        stage('Clean Up Existing Containers') {
+            steps {
+                sh '''
+                docker rm -f color-palette-web-ci || true
+                '''
             }
         }
 
