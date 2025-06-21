@@ -4,16 +4,11 @@ pipeline {
         ENV_VARS = credentials('env-file-secret')
     }
     stages {
-        stage('Checkout') {
+        stage('Checkout App') {
             steps {
                 git branch: 'main',
                     credentialsId: 'github-token',
                     url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
-            }
-        }
-        stage('Verify Files') {
-            steps {
-                sh 'ls -la'
             }
         }
         stage('Write .env File') {
@@ -21,14 +16,11 @@ pipeline {
                 script {
                     writeFile file: '.env', text: ENV_VARS
                 }
-                sh 'cat .env'
             }
         }
         stage('Clean Up Existing Containers') {
             steps {
-                sh '''
-                docker rm -f color-palette-web-ci || true
-                '''
+                sh 'docker rm -f color-palette-web-ci || true'
             }
         }
         stage('Build and Deploy') {
@@ -36,16 +28,31 @@ pipeline {
                 sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
             }
         }
+        stage('Checkout Tests') {
+            steps {
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests'
+            }
+        }
+        stage('Run Selenium Tests') {
+            steps {
+                sh '''
+                docker run --rm \
+                    -v $(pwd):/tests \
+                    -w /tests \
+                    markhobson/maven-chrome \
+                    mvn test
+                '''
+            }
+        }
     }
     post {
-        always {
-            sh 'docker-compose -p colorpalette-ci -f docker-compose.yml down || true'
-        }
         success {
-            echo 'Pipeline completed successfully!'
+            echo 'Pipeline ran successfully'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo 'Pipeline failed'
         }
     }
 }
