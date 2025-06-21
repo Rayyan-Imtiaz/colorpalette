@@ -1,58 +1,82 @@
 pipeline {
     agent any
+
     environment {
         ENV_VARS = credentials('env-file-secret')
     }
+
     stages {
-        stage('Checkout App') {
+
+        // App Code Checkout & Build
+        stage('Checkout App Code') {
             steps {
                 git branch: 'main',
                     credentialsId: 'github-token',
-                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
+                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette'
             }
         }
+
         stage('Write .env File') {
             steps {
                 script {
                     writeFile file: '.env', text: ENV_VARS
                 }
+                sh 'cat .env'
             }
         }
+
         stage('Clean Up Existing Containers') {
             steps {
                 sh 'docker rm -f color-palette-web-ci || true'
             }
         }
-        stage('Build and Deploy') {
+
+        stage('Build and Deploy App') {
             steps {
                 sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
             }
         }
-        stage('Checkout Tests') {
+
+        // Selenium Test Repo and Execution
+        stage('Checkout Test Code') {
             steps {
-                git branch: 'main',
-                    credentialsId: 'github-token',
-                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests'
+                dir('tests') {
+                    git branch: 'main',
+                        credentialsId: 'github-token',
+                        url: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests'
+                }
             }
         }
+
         stage('Run Selenium Tests') {
             steps {
-                sh '''
-                docker run --rm \
-                    -v $(pwd):/tests \
-                    -w /tests \
-                    markhobson/maven-chrome \
-                    mvn test
-                '''
+                dir('tests') {
+                    sh '''
+                    docker run --rm \
+                        -v $(pwd):/tests \
+                        -w /tests \
+                        markhobson/maven-chrome \
+                        mvn test
+                    '''
+                }
             }
         }
     }
+
+    // Notifications
     post {
         success {
-            echo 'Pipeline ran successfully'
+            emailext subject: "✅ Jenkins Build Success: ${env.JOB_NAME}",
+                     body: "The Jenkins build was successful!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}",
+                     to: 'rayyanq1172@gmail.com'
         }
         failure {
-            echo 'Pipeline failed'
+            emailext subject: "❌ Jenkins Build Failed: ${env.JOB_NAME}",
+                     body: "The Jenkins build failed!\n\nJob: ${env.JOB_NAME}\nBuild: ${env.BUILD_NUMBER}\nURL: ${env.BUILD_URL}",
+                     to: 'rayyanq1172@gmail.com'
+        }
+        always {
+            sh 'docker-compose -p colorpalette-ci -f docker-compose.yml down || true'
         }
     }
 }
