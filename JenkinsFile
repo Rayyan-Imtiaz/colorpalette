@@ -3,6 +3,7 @@ pipeline {
     environment {
         ENV_VARS = credentials('env-file-secret')
     }
+
     stages {
         stage('Checkout App') {
             steps {
@@ -11,6 +12,7 @@ pipeline {
                     url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
             }
         }
+
         stage('Write .env File') {
             steps {
                 script {
@@ -18,41 +20,42 @@ pipeline {
                 }
             }
         }
+
         stage('Clean Up Existing Containers') {
             steps {
                 sh 'docker rm -f color-palette-web-ci || true'
             }
         }
-        stage('Build and Deploy') {
+
+        stage('Build and Deploy App') {
             steps {
                 sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
             }
         }
-        stage('Checkout Tests') {
-            steps {
-                git branch: 'main',
-                    credentialsId: 'github-token',
-                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests'
-            }
-        }
-        stage('Run Selenium Tests') {
+
+        stage('Clone and Run Selenium Tests') {
             steps {
                 sh '''
-                docker run --rm \
-                    -v $(pwd):/tests \
-                    -w /tests \
-                    markhobson/maven-chrome \
-                    mvn test
+                rm -rf selenium-tests
+                git clone https://github.com/Rayyan-Imtiaz/colorpalette-tests selenium-tests
+                cd selenium-tests
+                docker run --rm -v $(pwd):/tests -w /tests markhobson/maven-chrome mvn clean test
                 '''
             }
         }
     }
+
     post {
         success {
-            echo 'Pipeline ran successfully'
+            mail to: 'rayyanq1172@gmail.com',
+                 subject: "✅ Jenkins Pipeline Success",
+                 body: "Your ColorPalette application was deployed and Selenium tests passed successfully."
         }
+
         failure {
-            echo 'Pipeline failed'
+            mail to: 'rayyanq1172@gmail.com',
+                 subject: "❌ Jenkins Pipeline Failed",
+                 body: "Your pipeline failed. Please check the Jenkins logs for details."
         }
     }
 }
