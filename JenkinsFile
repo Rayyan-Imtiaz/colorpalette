@@ -1,154 +1,58 @@
 pipeline {
     agent any
-
-    parameters {
-        string(name: 'APP_GIT_URL', defaultValue: 'https://github.com/Rayyan-Imtiaz/colorpalette', description: 'Git repository URL for app code')
-        string(name: 'TEST_GIT_URL', defaultValue: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests', description: 'Git repository URL for test code')
-        string(name: 'BRANCH', defaultValue: 'main', description: 'Git branch to clone for both repositories')
-        string(name: 'EMAIL', defaultValue: 'rayyanq1172@gmail.com', description: 'Email for notifications')
-        string(name: 'TIMEZONE', defaultValue: 'Asia/Karachi', description: 'Timezone for timestamp')
-        string(name: 'CREDENTIALS_ID', defaultValue: 'github-token', description: 'Jenkins credentials ID for Git access')
-        string(name: 'ENV_CREDENTIALS_ID', defaultValue: 'env-file-secret', description: 'Jenkins credentials ID for .env file')
-    }
-
     environment {
-        ENV_VARS = credentials("${params.ENV_CREDENTIALS_ID}")
+        ENV_VARS = credentials('env-file-secret')
     }
-
     stages {
-        stage('Validate App Files') {
+        stage('Checkout App') {
             steps {
-                git branch: "${params.BRANCH}", credentialsId: "${params.CREDENTIALS_ID}", url: "${params.APP_GIT_URL}"
-                sh '''
-                    [ -f docker-compose.yml ] || { echo "docker-compose.yml not found"; exit 1; }
-                    [ -f Dockerfile ] || { echo "Dockerfile not found"; exit 1; }
-                '''
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette/'
             }
         }
-
         stage('Write .env File') {
             steps {
                 script {
                     writeFile file: '.env', text: ENV_VARS
                 }
-                sh 'cat .env'
             }
         }
-
         stage('Clean Up Existing Containers') {
             steps {
-                sh '''
-                    docker rm -f color-palette-web-ci || true
-                    docker-compose -p colorpalette-ci -f docker-compose.yml down || true
-                '''
+                sh 'docker rm -f color-palette-web-ci || true'
             }
         }
-
-        stage('Build and Deploy App') {
+        stage('Build and Deploy') {
             steps {
-                sh '''
-                    docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build
-                '''
+                sh 'docker-compose -p colorpalette-ci -f docker-compose.yml up -d --build'
             }
         }
-
-        stage('Checkout Test Code') {
+        stage('Checkout Tests') {
             steps {
-                dir('tests') {
-                    git branch: "${params.BRANCH}", credentialsId: "${params.CREDENTIALS_ID}", url: "${params.TEST_GIT_URL}"
-                    sh '''
-                        [ -f pom.xml ] || { echo "pom.xml not found"; exit 1; }
-                    '''
-                }
+                git branch: 'main',
+                    credentialsId: 'github-token',
+                    url: 'https://github.com/Rayyan-Imtiaz/colorpalette-tests'
             }
         }
-
         stage('Run Selenium Tests') {
             steps {
-                dir('tests') {
-                    sh '''
-                        docker run --rm \
-                          --network host \
-                          -v "$(pwd)":/tests \
-                          -w /tests \
-                          markhobson/maven-chrome \
-                          bash -c "set -e; mvn clean test -Dsurefire.suiteXmlFiles=testng.xml"
-                    '''
-                }
-            }
-        }
-
-        stage('Generate Test Summary') {
-            steps {
-                dir('tests') {
-                    sh '''
-                        mkdir -p email-summary
-                        if [ -f target/surefire-reports/TEST-*.xml ]; then
-                            cp target/surefire-reports/TEST-*.xml email-summary/
-                            echo "Test Summary:" > email-summary/test-summary.txt
-                            for file in target/surefire-reports/TEST-*.xml; do
-                                echo "Results from $file:" >> email-summary/test-summary.txt
-                                grep '<testsuite' "$file" | sed 's/.*name="\\([^"]*\\)".*tests="\\([^"]*\\)".*failures="\\([^"]*\\)".*errors="\\([^"]*\\)".*skipped="\\([^"]*\\)".*/- Suite: \\1, Tests: \\2, Failures: \\3, Errors: \\4, Skipped: \\5/' >> email-summary/test-summary.txt
-                            done
-                            cat email-summary/test-summary.txt
-                        else
-                            echo "No test summary generated" > email-summary/test-summary.txt
-                        fi
-                        ls -la email-summary/
-                    '''
-                }
+                sh '''
+                docker run --rm \
+                    -v $(pwd):/tests \
+                    -w /tests \
+                    markhobson/maven-chrome \
+                    mvn test
+                '''
             }
         }
     }
-
     post {
-        always {
-            echo 'Cleaning up...'
-            sh '''
-                docker-compose -p colorpalette-ci -f docker-compose.yml down || true
-                docker rm -f color-palette-web-ci || true
-                rm -rf tests/email-summary tests/target .env
-            '''
-            archiveArtifacts artifacts: 'tests/email-summary/**,tests/target/surefire-reports/**', allowEmptyArchive: true
-        }
         success {
-            script {
-                def testSummary = fileExists('tests/email-summary/test-summary.txt') ? readFile('tests/email-summary/test-summary.txt') : 'No test summary available.'
-                emailext subject: "✅ Jenkins Build Success: ${env.JOB_NAME}",
-                         body: """All Selenium tests passed successfully! 🎉
-
-Here is the summary of your test cases:
-
-${testSummary}
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-URL: ${env.BUILD_URL}
-Time: ${new Date().format('yyyy-MM-dd HH:mm:ss z', TimeZone.getTimeZone(params.TIMEZONE))} ${params.TIMEZONE}
-""",
-                         to: "${params.EMAIL}",
-                         attachmentsPattern: 'tests/email-summary/TEST-*.xml'
-            }
+            echo 'Pipeline ran successfully'
         }
         failure {
-            echo 'Build or tests failed.'
-            script {
-                def testSummary = fileExists('tests/email-summary/test-summary.txt') ? readFile('tests/email-summary/test-summary.txt') : '⚠️ No test summary available due to failure.'
-                emailext subject: "❌ Jenkins Build Failed: ${env.JOB_NAME}",
-                         body: """Some Selenium build or test cases failed.
-
-Here is the summary (if available):
-
-${testSummary}
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-URL: ${env.BUILD_URL}
-Time: ${new Date().format('yyyy-MM-dd HH:mm:ss z', TimeZone.getTimeZone(params.TIMEZONE))} ${params.TIMEZONE}
-""",
-                         to: "${params.EMAIL}",
-                         attachmentsPattern: 'tests/email-summary/TEST-*.xml'
-            }
+            echo 'Pipeline failed'
         }
     }
 }
